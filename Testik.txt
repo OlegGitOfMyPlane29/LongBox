@@ -2,8 +2,8 @@ name of the project - Testik
 
 body - small
 
-conclusion - none
+conclusion - stupid
 
-comments - none
+comments - many
 
-author - none
+author - Olezha
