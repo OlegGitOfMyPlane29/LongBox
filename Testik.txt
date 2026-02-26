@@ -1,6 +1,6 @@
 name of the project - Testik
 
-body - none
+body - small
 
 conclusion - none
 
