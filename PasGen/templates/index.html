@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PasGen</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+
+        <header>
+            <h1>PasGen</h1>
+            <p class="subtitle">Secure Password Generator</p>
+        </header>
+
+        <main>
+            <div class="card">
+
+                <div class="field">
+                    <label for="length">Password length</label>
+                    <div class="length-row">
+                        <input type="range" id="length-range" min="4" max="128" value="16">
+                        <input type="number" id="length" min="4" max="128" value="16">
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>Character types</label>
+                    <div class="toggles">
+                        <label class="toggle">
+                            <input type="checkbox" id="uppercase" checked>
+                            <span>Uppercase &nbsp;A–Z</span>
+                        </label>
+                        <label class="toggle">
+                            <input type="checkbox" id="digits" checked>
+                            <span>Digits &nbsp;0–9</span>
+                        </label>
+                        <label class="toggle">
+                            <input type="checkbox" id="symbols">
+                            <span>Symbols &nbsp;!@#…</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="strength">
+                    <div class="strength-header">
+                        <span class="strength-label">Password strength</span>
+                        <span id="strength-text" class="strength-text">—</span>
+                    </div>
+                    <div class="strength-track">
+                        <div id="strength-bar" class="strength-bar"></div>
+                    </div>
+                </div>
+
+                <button id="generate-btn" class="btn-generate">Generate</button>
+
+                <div id="result-block" class="result hidden">
+                    <div class="result-label">Generated password:</div>
+                    <div class="result-row">
+                        <span id="password-output"></span>
+                        <button id="copy-btn" class="btn-copy">Copy</button>
+                    </div>
+                    <div id="copy-hint" class="copy-hint hidden">Copied!</div>
+                </div>
+
+                <div id="error-block" class="error hidden"></div>
+
+            </div>
+        </main>
+
+        <footer>PasGen &mdash; running locally on port 5000</footer>
+
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>
