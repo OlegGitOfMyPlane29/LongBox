@@ -1,36 +1,11 @@
 # Mood Booster
 
-Показывает случайную мотивирующую цитату в диалоговом окне Windows.
-Работает без Python и без интернета — только встроенные средства Windows.
+Double-click `main.vbs` to get a motivational quote.
 
-## Первый запуск (один раз)
+## Add a quote
 
-1. Дважды кликни на `create_shortcut.bat`
-2. В папке появится ярлык `MoodBooster.lnk`
+Open `main.vbs` in Notepad:
 
-## Ежедневное использование
-
-Дважды кликни на ярлык `MoodBooster.lnk` — появится окно с цитатой.
-
-## Как добавить свою цитату
-
-Открой `main.vbs` в блокноте:
-
-1. Измени число в строке `Dim quotes(14)` — увеличь на 1
-2. Добавь новую строку в конец списка:
-
-   ```vbscript
-   quotes(15) = "Твоя новая цитата."
-   ```
-
-3. В строке `index = Int(Rnd() * 15)` замени 15 на новое количество цитат
-
-## Структура проекта
-
-```
-MoodBooster/
-├── main.vbs             # вся логика приложения
-├── create_shortcut.bat  # запустить один раз для создания ярлыка
-├── MoodBooster.lnk      # ярлык (появится после запуска .bat)
-└── README.md            # эта инструкция
-```
+1. Change `Dim quotes(19)` — increase by 1
+2. Add `quotes(20) = "Your quote."`
+3. Change `Rnd() * 20` to the new total count
