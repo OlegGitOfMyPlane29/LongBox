@@ -1,11 +1,7 @@
 ' main.vbs - Mood Booster
-' Shows a random motivational quote in a Windows dialog.
-' To add a quote: increase the number in Dim quotes(...) by 1
-' and add a new line quotes(N) = "Your text."
+' To add a quote: increase Dim quotes(N) by 1, add quotes(N) = "text", update Rnd() * total
 
-' --- Quotes list ---
 Dim quotes(19) ' 20 quotes (index 0 to 19)
-
 quotes(0)  = "Start now. Perfection is the enemy of done."
 quotes(1)  = "Every day is a new chance to be better than yesterday."
 quotes(2)  = "Don't wait for inspiration. Action creates inspiration."
@@ -27,10 +23,5 @@ quotes(17) = "Done is better than perfect."
 quotes(18) = "Small progress is still progress."
 quotes(19) = "Show up. That's already half the work."
 
-' --- Pick a random quote ---
-Randomize
-Dim index
-index = Int(Rnd() * 20) ' random number from 0 to 19
-
-' --- Show the quote in a dialog window ---
-MsgBox quotes(index), vbOKOnly, "Mood Booster"
+Randomize ' shuffle the random generator
+MsgBox quotes(Int(Rnd() * 20)), vbOKOnly, "Mood Booster" ' pick and show a random quote
