@@ -54,6 +54,7 @@
                 </div>
 
                 <button id="generate-btn" class="btn-generate">Generate</button>
+                <button id="return-btn" class="btn-generate" disabled>Return</button>
 
                 <div id="result-block" class="result hidden">
                     <div class="result-label">Generated password:</div>
@@ -62,6 +63,13 @@
                         <button id="copy-btn" class="btn-copy">Copy</button>
                     </div>
                     <div id="copy-hint" class="copy-hint hidden">Copied!</div>
+                </div>
+
+                <div id="prev-block" class="result hidden">
+                    <div class="result-label">Previous password:</div>
+                    <div class="result-row">
+                        <span id="prev-password-output"></span>
+                    </div>
                 </div>
 
                 <div id="error-block" class="error hidden"></div>

@@ -13,6 +13,11 @@ const copyBtn      = document.getElementById("copy-btn");
 const copyHint     = document.getElementById("copy-hint");
 const strengthBar  = document.getElementById("strength-bar");
 const strengthText = document.getElementById("strength-text");
+const returnBtn    = document.getElementById("return-btn");
+const prevBlock    = document.getElementById("prev-block");
+const prevOut      = document.getElementById("prev-password-output");
+
+let previousPassword = null;
 
 // Strength calculation
 function calcStrength(length, uppercase, digits, symbols) {
@@ -119,11 +124,22 @@ copyBtn.addEventListener("click", () => {
 });
 
 function showResult(password) {
+    if (passwordOut.textContent) {
+        previousPassword = passwordOut.textContent;
+        returnBtn.disabled = false;
+    }
+    prevBlock.classList.add("hidden");
     passwordOut.textContent = password;
     resultBlock.classList.remove("hidden");
     errorBlock.classList.add("hidden");
     copyHint.classList.add("hidden");
 }
+
+returnBtn.addEventListener("click", () => {
+    if (previousPassword === null) return;
+    prevOut.textContent = previousPassword;
+    prevBlock.classList.remove("hidden");
+});
 
 function showError(message) {
     errorBlock.textContent = message;
