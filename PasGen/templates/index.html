@@ -75,11 +75,29 @@
                 <div id="error-block" class="error hidden"></div>
 
             </div>
+
+            <!-- Snake toggle -->
+            <div class="snake-toggle-row">
+                <button id="snake-toggle-btn" class="btn-snake-toggle">Play Snake</button>
+            </div>
+
+            <!-- Snake game card -->
+            <div id="snake-card" class="card snake-card hidden">
+                <div class="snake-header">
+                    <span class="snake-title">Snake</span>
+                    <span id="snake-score" class="snake-score">Score: 0</span>
+                </div>
+                <div class="snake-canvas-wrap">
+                    <canvas id="snake-canvas" width="320" height="320"></canvas>
+                </div>
+            </div>
+
         </main>
 
         <footer>PasGen &mdash; running locally on port 5000</footer>
 
     </div>
     <script src="/static/script.js"></script>
+    <script src="/static/snake.js"></script>
 </body>
 </html>

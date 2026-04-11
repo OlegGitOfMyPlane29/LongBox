@@ -1,11 +1,11 @@
 :root {
-    --bg:         #0f1117;
-    --card:       #1a1d27;
-    --accent:     #4f8ef7;
-    --accent-hov: #3a7adf;
-    --text:       #e2e8f0;
-    --muted:      #8892a4;
-    --border:     #2d3144;
+    --bg:         #1a0d14;
+    --card:       #2b1221;
+    --accent:     #f472b6;
+    --accent-hov: #ec4899;
+    --text:       #fce7f3;
+    --muted:      #c084a0;
+    --border:     #4d2240;
     --success:    #34d399;
     --error:      #f87171;
 }
@@ -258,7 +258,7 @@ input[type="number"]:focus {
 .error {
     padding: 12px 16px;
     border-radius: 8px;
-    background: rgba(248, 113, 113, 0.08);
+    background: rgba(248, 113, 113, 0.10);
     border: 1px solid var(--error);
     color: var(--error);
     font-size: 0.9rem;
@@ -274,5 +274,76 @@ footer {
     text-align: center;
     margin-top: 20px;
     font-size: 0.75rem;
-    color: var(--border);
+    color: var(--muted);
+}
+
+/* ── Snake game ───────────────────────────────────────────────────────── */
+
+.snake-toggle-row {
+    margin-top: 16px;
+    display: flex;
+    justify-content: center;
+}
+
+.btn-snake-toggle {
+    padding: 9px 24px;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+}
+
+.btn-snake-toggle:hover {
+    color: var(--text);
+    border-color: var(--accent);
+}
+
+.btn-snake-toggle:active { transform: scale(0.98); }
+
+.snake-card {
+    margin-top: 16px;
+    align-items: center;
+}
+
+.snake-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.snake-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.snake-score {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+}
+
+.snake-canvas-wrap {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    line-height: 0;
+}
+
+#snake-canvas {
+    display: block;
+    width: 320px;
+    height: 320px;
+}
+
+.snake-hint {
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-align: center;
 }
