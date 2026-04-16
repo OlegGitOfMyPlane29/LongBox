@@ -118,3 +118,10 @@ class FeedItem(BaseModel):
     total_days: int
     reward: str | None
     is_finished: bool
+
+
+class QuoteOut(BaseModel):
+    content: str
+    author: str
+    tags: list[str] = []
+    source: str

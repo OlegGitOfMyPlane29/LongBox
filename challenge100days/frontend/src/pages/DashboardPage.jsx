@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ThumbsDown, ThumbsUp, Trophy } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
@@ -20,6 +20,9 @@ const createChallengeSchema = z.object({
 export default function DashboardPage() {
   const { token, user } = useAuth()
   const [challenges, setChallenges] = useState([])
+  const [quote, setQuote] = useState(null)
+  const [quoteError, setQuoteError] = useState('')
+  const [quoteLoading, setQuoteLoading] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [logForms, setLogForms] = useState({})
@@ -33,7 +36,7 @@ export default function DashboardPage() {
     formState: { errors, isSubmitting },
   } = useForm({ resolver: zodResolver(createChallengeSchema), defaultValues: { title: '', habit1: '', habit2: '', habit3: '' } })
 
-  const loadChallenges = async () => {
+  const loadChallenges = useCallback(async () => {
     setLoading(true)
     try {
       const data = await apiRequest('/challenges/me', {}, token)
@@ -44,11 +47,28 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [token])
 
   useEffect(() => {
     loadChallenges()
+  }, [loadChallenges])
+
+  const loadQuote = useCallback(async () => {
+    setQuoteLoading(true)
+    try {
+      const data = await apiRequest('/quotes/random')
+      setQuote(data)
+      setQuoteError('')
+    } catch (e) {
+      setQuoteError(e.message)
+    } finally {
+      setQuoteLoading(false)
+    }
   }, [])
+
+  useEffect(() => {
+    loadQuote()
+  }, [loadQuote])
 
   const createChallenge = async (values) => {
     const habits = [values.habit1, values.habit2, values.habit3].map((item) => item.trim()).filter(Boolean)
@@ -136,6 +156,24 @@ export default function DashboardPage() {
 
   return (
     <div className="grid gap-4">
+      <Card>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-xl font-black uppercase">Цитата дня</h2>
+          <Button variant="accent" onClick={loadQuote} disabled={quoteLoading}>
+            {quoteLoading ? 'Обновляем...' : 'Обновить'}
+          </Button>
+        </div>
+        {quote ? (
+          <>
+            <p className="text-base font-semibold">"{quote.content}"</p>
+            <p className="mt-2 text-sm">- {quote.author}</p>
+          </>
+        ) : (
+          <p className="text-sm">Загружаем мотивацию...</p>
+        )}
+        {quoteError ? <p className="mt-2 text-sm font-semibold text-red-200">{quoteError}</p> : null}
+      </Card>
+
       <Card>
         <h2 className="mb-3 text-xl font-black uppercase">Начать испытание</h2>
         <p className="mb-3 text-sm">Игрок: {user?.display_name}. Добавь до 3 привычек и стартуй 100 дней.</p>

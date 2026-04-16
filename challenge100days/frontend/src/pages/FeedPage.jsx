@@ -10,16 +10,18 @@ export default function FeedPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await apiRequest('/feed/challenges', {}, token)
-        setItems(data)
-      } catch (e) {
-        setError(e.message)
-      }
+    let active = true
+    apiRequest('/feed/challenges', {}, token)
+      .then((data) => {
+        if (active) setItems(data)
+      })
+      .catch((e) => {
+        if (active) setError(e.message)
+      })
+    return () => {
+      active = false
     }
-    load()
-  }, [])
+  }, [token])
 
   return (
     <div className="grid gap-4">

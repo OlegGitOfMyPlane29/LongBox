@@ -112,3 +112,21 @@ def test_hundredth_day_requires_final_comment(client):
     body = with_final.json()
     assert body["reward"] == "Золотой кубок"
     assert body["is_finished"] is True
+
+
+def test_random_quote_returns_fallback_if_provider_fails(client, monkeypatch):
+    def broken_provider_1():
+        raise RuntimeError("provider down")
+
+    def broken_provider_2():
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr("app.routers.quotes._request_quotable_quote", broken_provider_1)
+    monkeypatch.setattr("app.routers.quotes._request_zenquotes_quote", broken_provider_2)
+
+    response = client.get("/quotes/random")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source"] == "fallback"
+    assert body["content"]
+    assert body["author"]

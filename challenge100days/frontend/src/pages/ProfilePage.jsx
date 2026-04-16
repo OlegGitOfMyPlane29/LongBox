@@ -28,20 +28,22 @@ export default function ProfilePage() {
 
   useEffect(() => {
     reset({ display_name: user?.display_name || '', password: '' })
-  }, [user])
+  }, [user, reset])
 
   useEffect(() => {
     if (user?.role !== 'admin') return
-    const loadUsers = async () => {
-      try {
-        const data = await apiRequest('/users', {}, token)
-        setUsers(data)
-      } catch (e) {
-        setMessage(e.message)
-      }
+    let active = true
+    apiRequest('/users', {}, token)
+      .then((data) => {
+        if (active) setUsers(data)
+      })
+      .catch((e) => {
+        if (active) setMessage(e.message)
+      })
+    return () => {
+      active = false
     }
-    loadUsers()
-  }, [user])
+  }, [user, token])
 
   const onSubmit = async (values) => {
     setMessage('')

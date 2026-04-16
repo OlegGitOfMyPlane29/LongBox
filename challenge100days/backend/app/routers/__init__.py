@@ -1,3 +1,3 @@
-from . import auth, challenges, feed, users
+from . import auth, challenges, feed, quotes, users
 
-__all__ = ["auth", "challenges", "feed", "users"]
+__all__ = ["auth", "challenges", "feed", "quotes", "users"]

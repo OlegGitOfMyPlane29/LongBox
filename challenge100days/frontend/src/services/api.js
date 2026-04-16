@@ -3,7 +3,12 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 const parseResponse = async (response) => {
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(data.detail || 'Ошибка сервера')
+    const error = new Error(data.detail || 'Ошибка сервера')
+    error.status = response.status
+    if (response.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('challenge100days:unauthorized'))
+    }
+    throw error
   }
   return data
 }

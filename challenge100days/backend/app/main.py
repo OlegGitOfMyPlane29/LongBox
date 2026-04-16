@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import settings
-from .routers import auth, challenges, feed, users
+from .routers import auth, challenges, feed, quotes, users
 
 app = FastAPI(title="challenge100days API")
 
@@ -33,3 +33,4 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(challenges.router)
 app.include_router(feed.router)
+app.include_router(quotes.router)
