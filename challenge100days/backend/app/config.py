@@ -12,7 +12,10 @@ class Settings(BaseModel):
     secret_key: str = os.getenv("SECRET_KEY", "change_me")
     algorithm: str = "HS256"
     access_token_minutes: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
-    cors_origins: str = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+    cors_origins: str = os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000",
+    )
     quotes_api_key: str = os.getenv("QUOTES_API_KEY", "")
     quotes_timeout_seconds: int = int(os.getenv("QUOTES_TIMEOUT_SECONDS", "8"))
     quotes_primary_url: str = os.getenv("QUOTES_PRIMARY_URL", "https://api.quotable.io/quotes/random")
