@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.pixel-panel {
+  @apply rounded-none border-4 border-slate-900 bg-amber-50 shadow-pixel;
+}
+
+.pixel-input {
+  @apply w-full border-4 border-slate-900 bg-white px-3 py-2 font-mono text-sm shadow-pixel-sm outline-none focus:ring-0;
+}
