@@ -1,7 +1,13 @@
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
+os.environ.setdefault("APP_ENV", "development")
+os.environ.setdefault("SECRET_KEY", "pytest-secret-key-at-least-thirty-two-chars-ok!")
+os.environ.setdefault("AUTH_RATE_LIMIT", "1000/minute")
 
 from app.database import Base, get_db
 from app.main import app

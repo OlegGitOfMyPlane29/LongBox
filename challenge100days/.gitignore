@@ -1,0 +1,19 @@
+# Секреты и локальная конфигурация (никогда не коммитить)
+.env
+.env.local
+.env.*.local
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Backend / локальные БД для проверок
+backend/challenge100days.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
