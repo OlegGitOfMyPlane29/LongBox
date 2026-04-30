@@ -1,0 +1,15 @@
+.git
+.gitignore
+frontend
+node_modules
+**/__pycache__
+**/*.pyc
+.venv
+venv
+backend/.venv
+backend/venv
+backend/challenge100days.db
+backend/.pytest_cache
+*.md
+.env
+.env.*
