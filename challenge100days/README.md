@@ -115,6 +115,8 @@ cd backend
 alembic upgrade head
 ```
 
+Образ в корневом `Dockerfile` под Timeweb Apps **не запускает Alembic при старте** (иначе healthcheck не успевает дождаться порта 8080). Перед первым деплоем или после новых миграций выполните `alembic upgrade head` с компьютера (или CI), где доступна та же `DATABASE_URL`, что у приложения в облаке.
+
 ## Создание администратора (seed)
 
 ```bash
