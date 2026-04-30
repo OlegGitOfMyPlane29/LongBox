@@ -80,6 +80,12 @@ async def unhandled_exception_handler(_: Request, exc: Exception):
     )
 
 
+@app.get("/")
+def root():
+    """Ответ на GET / — многие PaaS проверяют корень при health check."""
+    return {"status": "ok"}
+
+
 @app.get("/health")
 def health():
     return {"message": "Сервер работает"}
