@@ -6,6 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from .config import settings
 from .rate_limit import limiter
@@ -35,6 +36,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="challenge100days API", lifespan=lifespan)
 app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

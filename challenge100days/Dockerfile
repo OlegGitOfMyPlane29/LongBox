@@ -12,6 +12,9 @@ COPY backend/ .
 ENV PYTHONPATH=/app
 EXPOSE 8080
 
-# Timeweb проверяет :8080 сразу после старта. Alembic до uvicorn часто не успевает
-# (долгая БД / сеть) — healthcheck падает. Миграции один раз вручную — см. README.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Entrypoint пишет PORT в лог (Timeweb часто задаёт PORT) и слушает этот порт.
+# В панели задайте PORT=8080, если проверка здоровья идёт на 8080.
+RUN chmod +x /app/docker-entrypoint.sh && sed -i 's/\r$//' /app/docker-entrypoint.sh
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+
+# Миграции вручную перед первым запуском — см. README.
