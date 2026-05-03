@@ -1,9 +1,11 @@
 #!/bin/sh
 set -e
-# Timeweb может передать PORT; healthcheck ожидает тот же порт, что слушает процесс.
-# Один процесс uvicorn (без нескольких worker’ов на один порт).
+# Timeweb healthcheck идёт на localhost; в контейнере запрос может пойти на 127.0.0.1 или ::1.
+# Один процесс uvicorn слушает только один --host. Hypercorn с двумя --bind и ровно одним worker
+# принимает оба варианта без EADDRINUSE (как было при workers>1 по умолчанию).
 PORT="${PORT:-8080}"
 echo "challenge100days entrypoint: PORT=${PORT}"
-# Timeweb healthcheck бьёт в localhost (см. docs); на Linux это часто ::1.
-# Слушаем :: — на типичном Linux dual-stack этим же сокетом принимается и IPv4.
-exec uvicorn app.main:app --host "${UVICORN_HOST:-::}" --port "${PORT}"
+exec hypercorn app.main:app \
+  --workers 1 \
+  --bind "0.0.0.0:${PORT}" \
+  --bind "[::]:${PORT}"
