@@ -1,9 +1,14 @@
 """Настройки окружения.
 
 В development допускается SQLite по умолчанию и запасной JWT-секрет, если в .env нет сильного ключа.
-В production (APP_ENV=production) обязательны DATABASE_URL и SECRET_KEY из переменных окружения;
+В production (APP_ENV=production) обязательны БД и SECRET_KEY из переменных окружения;
 приложение не стартует при слабом или пустом SECRET_KEY — см. README, раздел «Продакшен».
+
+БД: либо DATABASE_URL, либо (рекомендовано для PaaS вроде Timeweb) отдельные DB_HOST, DB_USER,
+DB_PASSWORD — приложение само соберёт URL и закодирует пароль; так UI не портит спецсимволы в URI.
 """
+
+from urllib.parse import quote
 
 from pydantic import BaseModel, ConfigDict
 
@@ -19,12 +24,33 @@ def _resolve_app_env() -> str:
     return os.getenv("APP_ENV", "development").strip().lower()
 
 
+def _database_url_from_parts() -> str | None:
+    """Если заданы DB_HOST, DB_USER, DB_PASSWORD — строим DATABASE_URL с quote для пароля."""
+    host = os.getenv("DB_HOST", "").strip()
+    user = os.getenv("DB_USER", "").strip()
+    password = os.getenv("DB_PASSWORD", "").strip()
+    if not (host and user and password):
+        return None
+    name = (os.getenv("DB_NAME", "") or "postgres").strip() or "postgres"
+    port = (os.getenv("DB_PORT", "") or "5432").strip() or "5432"
+    scheme = (os.getenv("DB_SCHEME", "") or "postgresql+psycopg2").strip() or "postgresql+psycopg2"
+    u = quote(user, safe="")
+    p = quote(password, safe="")
+    return f"{scheme}://{u}:{p}@{host}:{port}/{name}"
+
+
 def _resolve_database_url(app_env: str) -> str:
+    from_parts = _database_url_from_parts()
+    if from_parts:
+        return from_parts
     raw = os.getenv("DATABASE_URL", "").strip()
     if raw:
         return raw
     if app_env == "production":
-        raise ValueError("DATABASE_URL must be set when APP_ENV=production")
+        raise ValueError(
+            "When APP_ENV=production, set DATABASE_URL or DB_HOST, DB_USER, DB_PASSWORD "
+            "(optional: DB_NAME, DB_PORT, DB_SCHEME)."
+        )
     return "sqlite:///./challenge100days.db"
 
 

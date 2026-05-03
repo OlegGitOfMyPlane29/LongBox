@@ -1,5 +1,4 @@
 from logging.config import fileConfig
-import os
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
@@ -7,6 +6,7 @@ from dotenv import load_dotenv
 
 from app.database import Base
 from app import models  # noqa: F401
+from app.config import settings
 
 config = context.config
 
@@ -15,9 +15,7 @@ if config.config_file_name is not None:
 
 load_dotenv()
 
-database_url = os.getenv("DATABASE_URL")
-if database_url:
-    config.set_main_option("sqlalchemy.url", database_url)
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 target_metadata = Base.metadata
 
