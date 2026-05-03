@@ -4,9 +4,6 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends socat \
-    && rm -rf /var/lib/apt/lists/*
-
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -15,7 +12,7 @@ COPY backend/ .
 ENV PYTHONPATH=/app
 EXPOSE 8080
 
-# Entrypoint пишет PORT в лог (Timeweb часто задаёт PORT) и слушает этот порт.
+# Entrypoint: один uvicorn на 0.0.0.0:$PORT (переменная PORT; Timeweb часто задаёт её сам).
 # В панели задайте PORT=8080, если проверка здоровья идёт на 8080.
 RUN chmod +x /app/docker-entrypoint.sh && sed -i 's/\r$//' /app/docker-entrypoint.sh
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
