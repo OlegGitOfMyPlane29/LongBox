@@ -1,11 +1,8 @@
-# Корень репозитория — требование Timeweb App Platform (Dockerfile в корне).
-# Контекст сборки: весь репозиторий; код API в каталоге backend/.
+# Timeweb App Platform: у платформы healthcheck и парсер Dockerfile ожидают явный CMD с uvicorn на 0.0.0.0.
+# Только ENTRYPOINT без CMD у них может трактоваться как «команда не указана».
 FROM python:3.12-slim
 
 WORKDIR /app
-
-RUN apt-get update && apt-get install -y --no-install-recommends socat \
-    && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -13,10 +10,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ .
 
 ENV PYTHONPATH=/app
+ENV PORT=8080
 EXPOSE 8080
 
-# Entrypoint: socat (dual-stack на $PORT) -> uvicorn на 127.0.0.1:$BACKEND_PORT. Timeweb: PORT=8080.
-RUN chmod +x /app/docker-entrypoint.sh && sed -i 's/\r$//' /app/docker-entrypoint.sh
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+# Совпадает с типичной проверкой по GET / (у приложения есть маршрут /).
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=6 \
+    CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/'%os.environ.get('PORT','8080'))"
 
-# Миграции вручную перед первым запуском — см. README.
+# PORT подставляется при старте (Timeweb может переопределить в окружении).
+CMD ["sh", "-c", "exec python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+
+# Миграции вручную — см. README.
