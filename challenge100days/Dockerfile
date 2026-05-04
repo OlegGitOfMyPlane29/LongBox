@@ -1,5 +1,6 @@
 # Timeweb Apps: явный CMD; модуль ASGI — app.main:app (не main:app).
-# Gunicorn + 1× UvicornWorker часто стабильнее «голого» uvicorn на PaaS (сигналы, прокси, healthcheck).
+# Gunicorn слушает [::]:PORT (на Linux обычно dual-stack: отвечает и на 127.0.0.1, и на ::1).
+# Если слушать только 0.0.0.0, платформа часто поднимает второй uvicorn на [::]:8080 — healthcheck бьёт в него и падает.
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -14,6 +15,6 @@ ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
 EXPOSE 8080
 
-CMD ["sh", "-c", "exec gunicorn app.main:app -w 1 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8080} --timeout 120 --graceful-timeout 60 --access-logfile - --error-logfile -"]
+CMD ["sh", "-c", "exec gunicorn app.main:app -w 1 -k uvicorn.workers.UvicornWorker --bind \"[::]:${PORT:-8080}\" --timeout 120 --graceful-timeout 60 --access-logfile - --error-logfile -"]
 
 # Миграции вручную — см. README.
