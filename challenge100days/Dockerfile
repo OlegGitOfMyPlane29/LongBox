@@ -1,6 +1,5 @@
-# Timeweb Apps: явный CMD с uvicorn (модуль app.main:app, не main:app).
-# Healthcheck платформы часто ходит на ::1; на Linux bind :: обычно dual-stack (IPv4+IPv6).
-# Если не поможет — в переменных задайте UVICORN_HOST=0.0.0.0
+# Timeweb Apps: явный CMD; модуль ASGI — app.main:app (не main:app).
+# Gunicorn + 1× UvicornWorker часто стабильнее «голого» uvicorn на PaaS (сигналы, прокси, healthcheck).
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -11,11 +10,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ .
 
 ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
-ENV UVICORN_HOST=::
 EXPOSE 8080
 
-# Собственный HEALTHCHECK убран: Timeweb задаёт свою проверку; дублирование могло мешать.
-CMD ["sh", "-c", "exec python -m uvicorn app.main:app --host ${UVICORN_HOST:-::} --port ${PORT:-8080}"]
+CMD ["sh", "-c", "exec gunicorn app.main:app -w 1 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8080} --timeout 120 --graceful-timeout 60 --access-logfile - --error-logfile -"]
 
 # Миграции вручную — см. README.
