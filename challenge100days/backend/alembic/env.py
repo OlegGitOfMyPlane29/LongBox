@@ -15,7 +15,9 @@ if config.config_file_name is not None:
 
 load_dotenv()
 
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# ConfigParser в Alembic воспринимает % как подстановку; в URL после quote() бывают %21 и т.д.
+_db_url = settings.database_url.replace("%", "%%")
+config.set_main_option("sqlalchemy.url", _db_url)
 
 target_metadata = Base.metadata
 
