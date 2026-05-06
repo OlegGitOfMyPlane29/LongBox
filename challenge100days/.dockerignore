@@ -1,6 +1,8 @@
 .git
 .gitignore
-frontend
+# Не исключать весь frontend — иначе образ nginx из deploy/nginx не увидит исходники.
+# Исключаем только тяжёлый node_modules (он ставится при npm ci в Dockerfile).
+frontend/node_modules
 node_modules
 **/__pycache__
 **/*.pyc
