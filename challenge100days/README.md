@@ -138,6 +138,10 @@ python seed_admin.py
 
 По умолчанию используются значения `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_DISPLAY_NAME` из `.env`.
 
+## Деплой на VPS (Docker, Postgres на той же машине)
+
+Краткая инструкция для Timeweb VPS и аналогов: **[deploy/README.md](deploy/README.md)**. В корне каталога `challenge100days/` — `docker-compose.yml`, nginx и образ фронта; шаблон переменных — **`.env.production.example`** (на сервере скопировать в `.env`).
+
 ## Продакшен (секреты и режим)
 
 Файл `.env` с реальными секретами **не коммитьте** (в корне есть `.gitignore`). Выкладка опирается на переменные окружения хоста, CI/CD или секрет-хранилище.
