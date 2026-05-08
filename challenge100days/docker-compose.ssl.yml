@@ -1,0 +1,11 @@
+# Подключать ПОСЛЕ выпуска сертификата certbot на хосте:
+#   docker compose -f docker-compose.yml -f docker-compose.ssl.yml up -d
+#
+# Том /etc/letsencrypt — с хоста Ubuntu (certbot --webroot).
+# Файл deploy/nginx/ssl.conf должен существовать (есть в репозитории).
+
+services:
+  nginx:
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./deploy/nginx/ssl.conf:/etc/nginx/conf.d/ssl.conf:ro

@@ -39,13 +39,11 @@ docker compose up -d
 
 Откройте в браузере `http://IP_сервера` (или свой порт, если задали `HTTP_PUBLISH_PORT`). Порт **8080 приложения не открывайте наружу** — снаружи только nginx (`80` / `443`).
 
-## 4. HTTPS (рекомендуется для преподавателя)
+## 4. HTTPS (домен и замочек в браузере)
 
-1. Привяжите домен в DNS к IP VPS (A‑запись в панели Timeweb или у регистратора).
-2. Обновите **CORS_ORIGINS** под `https://ваш-домен`, выполните `docker compose restart api`.
-3. На сервере установите Certbot по инструкции Timeweb/пакет nginx certbot-plugin, выпустите сертификат для домена и подключите `ssl_certificate` к server `listen 443 ssl` или используйте готовый сниппет certbot в конфигурации nginx, затем `docker compose restart nginx`.
+Пошагово для **Let’s Encrypt + nginx в Docker**: **[TIMEWEB-HTTPS.md](TIMEWEB-HTTPS.md)** (DNS, certbot, `docker-compose.ssl.yml`, редирект на HTTPS).
 
-Подробности зависят от выбора (certbot standalone vs webroot); при необходимости временно остановите контейнер nginx на время выпуска сертификата (`docker compose stop nginx`).
+Кратко: A‑запись домена на IP VPS → в `.env` задать **`CORS_ORIGINS=https://ваш-домен`** → выпустить сертификат → подключить том **`/etc/letsencrypt`** и файл **`deploy/nginx/ssl.conf`**.
 
 ## 5. Обновление после `git pull`
 
