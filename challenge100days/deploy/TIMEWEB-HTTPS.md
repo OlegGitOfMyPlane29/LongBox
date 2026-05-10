@@ -1,5 +1,7 @@
 # HTTPS для days100.ru (Timeweb VPS + Docker)
 
+**Краткий порядок:** `git pull` → правка `.env` (`CORS_ORIGINS=https://days100.ru,https://www.days100.ru`) → `docker compose up -d api` и nginx → установить **certbot** → выпуск сертификата → `docker compose -f docker-compose.yml -f docker-compose.ssl.yml up -d` → включить редирект HTTP→HTTPS → проверить `curl https://days100.ru/api/health`.
+
 Предполагается: проект уже поднят по `deploy/README.md`, IP **186.246.5.232**, домен куплен у Timeweb.
 
 ## 1. DNS в панели Timeweb (или у регистратора DNS)
@@ -120,7 +122,25 @@ ufw reload
 
 ## Продление сертификата
 
-Certbot ставит **таймер systemd** `certbot.timer` — продление обычно автоматическое. После продления перезапуск nginx обычно не нужен: файлы в `/etc/letsencrypt` обновляются, nginx подхватывает при **reload**.
+Certbot ставит **таймер systemd** `certbot.timer` — продление обычно автоматическое. Файлы в `/etc/letsencrypt` обновляются на диске, но контейнер nginx может не подхватить новый ключ до **reload**.
+
+Добавьте один раз deploy-hook (подставьте путь к проекту):
+
+```bash
+mkdir -p /etc/letsencrypt/renewal-hooks/deploy
+nano /etc/letsencrypt/renewal-hooks/deploy/reload-challenge100days-nginx.sh
+```
+
+Содержимое:
+
+```bash
+#!/bin/sh
+cd /root/LongBox/challenge100days && docker compose exec nginx nginx -s reload
+```
+
+```bash
+chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-challenge100days-nginx.sh
+```
 
 Проверка таймера: `systemctl status certbot.timer`
 
