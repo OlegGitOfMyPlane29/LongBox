@@ -1,6 +1,9 @@
 import { Telegraf, Markup } from 'telegraf';
 import { buildBtcPriceMessageLines } from './binancePrice.js';
-import { clipTelegramMessage } from './gigachatClient.js';
+import {
+  clipTelegramMessage,
+  preemptiveTelebotikAnswer,
+} from './gigachatClient.js';
 import { telegrafProxyOptionsFromEnv } from './telegramProxyOpts.js';
 import {
   isDailySubscribed,
@@ -142,6 +145,12 @@ export function createBot(token, pool, gigachat = null) {
       return;
     }
 
+    const early = preemptiveTelebotikAnswer(payload);
+    if (early !== null) {
+      await ctx.reply(early, mainKb());
+      return;
+    }
+
     let stopTyping = /** @type {null | (() => void)} */ (null);
     try {
       stopTyping = createTypingTicker(ctx.telegram, ctx.chat.id);
@@ -150,7 +159,9 @@ export function createBot(token, pool, gigachat = null) {
       );
       await ctx.reply(reply, mainKb());
     } catch (err) {
-      console.error('[gigachat]', err);
+      const detail =
+        err instanceof Error ? err.stack ?? err.message : String(err);
+      console.error('[gigachat] запрос провалился:', detail);
       await ctx.reply(
         'Не получилось ответить через GigaChat. Проверьте ключ, сеть или сертификаты (README). Чуть позже можете повторить вопрос.',
         mainKb(),
