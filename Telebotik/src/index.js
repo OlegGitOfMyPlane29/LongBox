@@ -6,6 +6,7 @@ import {
   startScheduledJobs,
   stopScheduledJobs,
 } from './dailyDigest.js';
+import { createGigachatFromEnv } from './gigachatClient.js';
 
 const token = process.env.BOT_TOKEN?.trim();
 const databaseUrl = process.env.DATABASE_URL?.trim();
@@ -35,7 +36,11 @@ try {
   process.exit(1);
 }
 
-const bot = createBot(token, pool);
+const gigachat = createGigachatFromEnv();
+if (gigachat) console.log('[gigachat] включён — вопросы через /ai, /ask или обычным текстом');
+else console.warn('[gigachat] нет — задайте GIGACHAT_AUTHORIZATION_KEY чтобы спрашивать нейросеть');
+
+const bot = createBot(token, pool, gigachat);
 
 const stop = async (signal) => {
   console.log(`${signal}: останавливаю рассылки, поллинг и пул PostgreSQL…`);

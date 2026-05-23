@@ -1,11 +1,15 @@
 import { Telegraf, Markup } from 'telegraf';
 import { buildBtcPriceMessageLines } from './binancePrice.js';
+import { clipTelegramMessage } from './gigachatClient.js';
 import { telegrafProxyOptionsFromEnv } from './telegramProxyOpts.js';
 import {
   isDailySubscribed,
   subscribeDaily,
   unsubscribeDaily,
 } from './subscriberRepo.js';
+
+
+/** @typedef {import('./gigachatClient.js').GigachatClient} GigachatClient */
 
 /** @typedef {import('pg').Pool} Pool */
 
@@ -21,10 +25,28 @@ function mainKb() {
 }
 
 /**
+ * Интервал ~4 сек: Telegram гасит «печатает» примерно каждые 5 сек без повтора.
+ *
+ * @param {{ sendChatAction: (chatId: number, action: string) => Promise<boolean> }} telegram
+ * @param {number} chatId
+ * @returns {() => void}
+ */
+function createTypingTicker(telegram, chatId) {
+  const ms = 4000;
+  const tick = () => {
+    void telegram.sendChatAction(chatId, 'typing').catch(() => {});
+  };
+  tick();
+  const handle = setInterval(tick, ms);
+  return () => clearInterval(handle);
+}
+
+/**
  * @param {string} token
  * @param {Pool} pool
+ * @param {GigachatClient | null} [gigachat]
  */
-export function createBot(token, pool) {
+export function createBot(token, pool, gigachat = null) {
   const bot = new Telegraf(token, telegrafProxyOptionsFromEnv());
 
   async function replySpotBtc(ctx) {
@@ -35,6 +57,10 @@ export function createBot(token, pool) {
   bot.start(async (ctx) => {
     const chatId = ctx.chat.id;
     const on = await isDailySubscribed(pool, chatId);
+    const llmLine =
+      gigachat != null
+        ? '• Коман **`/ai`**, **`/gpt`**, **`/ask`** или **любой обычный текст** без `/` — вопрос нейросети **GigaChat** (`GIGACHAT_AUTHORIZATION_KEY` в окружении).\n'
+        : '• Если задать `GIGACHAT_AUTHORIZATION_KEY` в `.env`, станет доступен **GigaChat**: `/ai` `/gpt` `/ask` или обычный текст (README).\n';
     await ctx.reply(
       'Привет! Это Telebotik — только курс Bitcoin к USDT (спот **Binance**).\n\n' +
         '• Кнопка «' +
@@ -45,7 +71,9 @@ export function createBot(token, pool) {
         '» или **`/subscribe`** — раз в день утром (если включили), одно сообщение подписчикам.\n' +
         '• «' +
         BTN_UNS +
-        '» или **`/unsubscribe`** — отключить утреннее письмо.\n\n' +
+        '» или **`/unsubscribe`** — отключить утреннее письмо.\n' +
+        llmLine +
+        '\n' +
         `_Сейчас утренняя рассылка:_ ${on ? 'включена ✓' : 'выключена'}.`,
       { parse_mode: 'Markdown', ...mainKb() },
     );
@@ -63,7 +91,11 @@ export function createBot(token, pool) {
         '» — подписаться на утреннее уведомление\n' +
         '• `/unsubscribe` или «' +
         BTN_UNS +
-        '» — отписаться\n\n' +
+        '» — отписаться\n' +
+        (gigachat != null
+          ? '• `/ai`, `/gpt` или `/ask` плюс вопрос либо **простой текст без /** — через **GigaChat** при настроенном `GIGACHAT_AUTHORIZATION_KEY`\n'
+          : '• При `GIGACHAT_AUTHORIZATION_KEY` появится GigaChat: `/ai`, `/gpt`, `/ask` или обычный текст.\n') +
+        '\n' +
         'Точное время «утром» задаёт администратор бота переменными `BTC_DIGEST_CRON` и `BTC_DIGEST_TZ` в файле окружения (по умолчанию 09:00, часовой пояс машины).\n\n' +
         'Для теста раз в несколько минут можно задать `BTC_DIGEST_TICK_MINUTES` — см. README.',
       { parse_mode: 'Markdown', ...mainKb() },
@@ -101,6 +133,77 @@ export function createBot(token, pool) {
     await replyUnsub(ctx, 'Отписались от утренней рассылки.');
   });
 
+  async function replyViaGigaChat(ctx, payload) {
+    if (!gigachat) {
+      await ctx.reply(
+        'GigaChat не настроен: задайте GIGACHAT_AUTHORIZATION_KEY в .env.',
+        mainKb(),
+      );
+      return;
+    }
+
+    let stopTyping = /** @type {null | (() => void)} */ (null);
+    try {
+      stopTyping = createTypingTicker(ctx.telegram, ctx.chat.id);
+      const reply = clipTelegramMessage(
+        await gigachat.completeUserTurn(payload),
+      );
+      await ctx.reply(reply, mainKb());
+    } catch (err) {
+      console.error('[gigachat]', err);
+      await ctx.reply(
+        'Не получилось ответить через GigaChat. Проверьте ключ, сеть или сертификаты (README). Чуть позже можете повторить вопрос.',
+        mainKb(),
+      );
+    } finally {
+      stopTyping?.();
+    }
+  }
+
+  /**
+   * @param {string} full вход `/ai текст`, `/gpt текст` или `@username` суффикс бота у команды.
+   */
+  function slashAiGptPayload(full) {
+    const m = full.match(/^\/(?:ai|gpt)(?:@\S+)?(.*)$/is);
+    return (m?.[1] ?? '').trim();
+  }
+
+  /**
+   * @param {string} full вход `/ask вопрос` (поддерживает `/ask@бот`).
+   */
+  function slashAskPayload(full) {
+    const m = full.match(/^\/ask(?:@\S+)?(.*)$/is);
+    return (m?.[1] ?? '').trim();
+  }
+
+  bot.command(['ai', 'gpt'], async (ctx) => {
+    const full = ctx.message?.text ?? '';
+    const payload = slashAiGptPayload(full);
+    if (!payload) {
+      await ctx.reply(
+        'Например: `/ai Что такое биткойн простыми словами?`\nили просто отправьте вопрос **обычным сообщением без /command**.',
+        { parse_mode: 'Markdown', ...mainKb() },
+      );
+      return;
+    }
+
+    await replyViaGigaChat(ctx, payload);
+  });
+
+  bot.command('ask', async (ctx) => {
+    const full = ctx.message?.text ?? '';
+    const payload = slashAskPayload(full);
+    if (!payload) {
+      await ctx.reply(
+        'Например: `/ask Как читают графики свечей?`',
+        { parse_mode: 'Markdown', ...mainKb() },
+      );
+      return;
+    }
+
+    await replyViaGigaChat(ctx, payload);
+  });
+
   bot.on('text', async (ctx) => {
     const text = ctx.message?.text ?? '';
     if (text.startsWith('/')) {
@@ -108,6 +211,11 @@ export function createBot(token, pool) {
         'Такую команду не знаю. Список — `/help` или кнопки ниже.',
         { parse_mode: 'Markdown', ...mainKb() },
       );
+      return;
+    }
+
+    if (gigachat != null && text.trim().length > 0) {
+      await replyViaGigaChat(ctx, text.trim());
       return;
     }
 

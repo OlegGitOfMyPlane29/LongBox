@@ -1,6 +1,6 @@
 # Telebotik
 
-Telegram-бот на **Node.js** + **Telegraf**: курс **BTC/USDT** (спот Binance), по запросу и **один раз в день** утром для подписчиков. Подписчики хранятся в **PostgreSQL**.
+Telegram-бот на **Node.js** + **Telegraf**: курс **BTC/USDT** (спот Binance), по запросу и **один раз в день** утром для подписчиков. Опционально — ответы **GigaChat** (Сбер): `/ai`, `/gpt`, `/ask` или **любое сообщение без `/`**, когда в `.env` задан ключ. Подписчики утренней рассылки хранятся в **PostgreSQL**.
 
 - **Прокси для Telegram** при VPN: `SOCKS_PROXY` / `TELEGRAM_PROXY` / см. **`.env.example`**.
 - Ежедневное время задаётся **`BTC_DIGEST_CRON`** и при необходимости **`BTC_DIGEST_TZ`** (например `Europe/Moscow`).
@@ -54,6 +54,16 @@ BTC_DIGEST_SMOKE_ON_START=1
 | `/btc` или «₿ Курс сейчас» | Текущая цена BTC/USDT |
 | `/subscribe` или «🔔 …вкл.» | Записаться на утреннее сообщение |
 | `/unsubscribe` или «🔕 …выкл.» | Отключить утро |
+| `/ai`, `/gpt`, `/ask` + текст или **обычный текст** без `/` | **GigaChat** (если в `.env` задан `GIGACHAT_AUTHORIZATION_KEY`; во время генерации отправляется «печатает…» по таймеру) |
+
+Подробнее о ключе и ошибках HTTPS — см. **`.env.example`**. Документация GigaChat API: [developers.sber.ru](https://developers.sber.ru/docs/ru/gigachat/guides/main).
+
+### GigaChat: что положить в `.env`
+
+1. В проекте [разработчиков Сбера](https://developers.sber.ru/) создайте приложение и скопируйте **authorization key** (строку для заголовка `Authorization: Basic …`, часто уже в виде base64 без слова Basic).
+2. В `.env` задайте `GIGACHAT_AUTHORIZATION_KEY=...`, при необходимости — `GIGACHAT_SCOPE=GIGACHAT_API_PERS` (или то, что пришло для вашего приложения).
+
+Если Node.js жалуется на **сертификаты** при HTTPS к узлам `.sberbank.ru`, см. официальный раздел про НУЦ / корневой сертификат, либо **только для учебной отладки** включите один из переключателей из `.env.example` (`GIGACHAT_TLS_INSECURE` / `GIGACHAT_VERIFY_SSL_CERTS`). Для VPS с обновлённым доверенным хранилищем проблем может не быть.
 
 ## Структура
 
@@ -65,7 +75,8 @@ scripts/
   apply-schema.mjs
 src/
   index.js            — вход, планировщики
-  bot.js              — диалог
+  bot.js              — диалог (+ GigaChat, typing)
+  gigachatClient.js   — OAuth access_token и POST /chat/completions
   binancePrice.js     — Binance REST
   telegramProxyOpts.js
   subscriberRepo.js   — PG: кто подписан
