@@ -1,38 +1,61 @@
 import { Telegraf, Markup } from 'telegraf';
-import { buildBtcPriceMessageLines } from './binancePrice.js';
+import {
+  appendTurn,
+  clearHistory,
+  getHistory,
+} from './chatHistory.js';
 import {
   clipTelegramMessage,
-  preemptiveTelebotikAnswer,
+  GIGACHAT_FALLBACK_ERROR,
+  OZON_DOCS_LINKS,
+  preemptiveOzonAnswer,
 } from './gigachatClient.js';
 import { telegrafProxyOptionsFromEnv } from './telegramProxyOpts.js';
-import {
-  isDailySubscribed,
-  subscribeDaily,
-  unsubscribeDaily,
-} from './subscriberRepo.js';
-
 
 /** @typedef {import('./gigachatClient.js').GigachatClient} GigachatClient */
 
-/** @typedef {import('pg').Pool} Pool */
+const BTN_BUY = '🛒 Как купить';
+const BTN_RETURN = '↩️ Возврат товара';
+const BTN_SELL = '📦 Продажа на ОЗОН';
+const BTN_DOCS = '📋 Документы ОЗОН';
+const BTN_RESET = '🔄 Начать заново';
 
-const BTN_PRICE = '₿ Курс сейчас';
-const BTN_SUB = '🔔 Утренний дайджест вкл.';
-const BTN_UNS = '🔕 Утренний дайджест выкл.';
+const TOPIC_PROMPTS = {
+  [BTN_BUY]:
+    'Как купить товар на ОЗОН: с чего начать и на что обратить внимание новичку?',
+  [BTN_RETURN]:
+    'Как оформить возврат товара на ОЗОН в общих чертах?',
+  [BTN_SELL]:
+    'Как начать продавать на маркетплейсе ОЗОН: основные шаги для начинающего?',
+};
+
+const START_MESSAGE =
+  'Привет! Я **Telebotik** — неофициальный AI-помощник по маркетплейсу **ОЗОН**.\n\n' +
+  '⚠️ Я **не** поддержка компании Ozon и **не** даю юридических или финансовых гарантий. ' +
+  'Для точных формулировок смотрите официальные документы на docs.ozon.ru.\n\n' +
+  'Могу подсказать в общих чертах:\n' +
+  '• покупку на ОЗОН\n' +
+  '• возврат товара\n' +
+  '• начало продажи на маркетплейсе\n' +
+  '• правила и документы площадки\n\n' +
+  '**Напишите вопрос** обычным сообщением или нажмите кнопку ниже.\n' +
+  '• `/reset` — начать диалог заново (очистить историю)\n' +
+  '• `/help` — список команд';
 
 /** @returns {ReturnType<typeof Markup.keyboard>} */
 function mainKb() {
-  return Markup.keyboard([[BTN_PRICE], [BTN_SUB, BTN_UNS]])
+  return Markup.keyboard([
+    [BTN_BUY, BTN_RETURN],
+    [BTN_SELL, BTN_DOCS],
+    [BTN_RESET],
+  ])
     .resize()
     .persistent();
 }
 
 /**
- * Интервал ~4 сек: Telegram гасит «печатает» примерно каждые 5 сек без повтора.
- *
  * @param {{ sendChatAction: (chatId: number, action: string) => Promise<boolean> }} telegram
  * @param {number} chatId
- * @returns {() => void}
  */
 function createTypingTicker(telegram, chatId) {
   const ms = 4000;
@@ -44,174 +67,138 @@ function createTypingTicker(telegram, chatId) {
   return () => clearInterval(handle);
 }
 
+function docsReplyText() {
+  return (
+    'Официальные документы ОЗОН (для точных формулировок):\n\n' +
+    OZON_DOCS_LINKS.map((url, i) => `${i + 1}. ${url}`).join('\n') +
+    '\n\nЗадайте конкретный вопрос текстом — постараюсь ответить в общих чертах.'
+  );
+}
+
 /**
  * @param {string} token
- * @param {Pool} pool
  * @param {GigachatClient | null} [gigachat]
  */
-export function createBot(token, pool, gigachat = null) {
+export function createBot(token, gigachat = null) {
   const bot = new Telegraf(token, telegrafProxyOptionsFromEnv());
 
-  async function replySpotBtc(ctx) {
-    const msg = await buildBtcPriceMessageLines();
-    await ctx.reply(msg.text, mainKb());
+  async function replyDocs(ctx) {
+    await ctx.reply(docsReplyText(), mainKb());
   }
 
-  bot.start(async (ctx) => {
-    const chatId = ctx.chat.id;
-    const on = await isDailySubscribed(pool, chatId);
-    const llmLine =
-      gigachat != null
-        ? '• Коман **`/ai`**, **`/gpt`**, **`/ask`** или **любой обычный текст** без `/` — вопрос нейросети **GigaChat** (`GIGACHAT_AUTHORIZATION_KEY` в окружении).\n'
-        : '• Если задать `GIGACHAT_AUTHORIZATION_KEY` в `.env`, станет доступен **GigaChat**: `/ai` `/gpt` `/ask` или обычный текст (README).\n';
+  async function replyReset(ctx) {
+    clearHistory(ctx.chat.id);
     await ctx.reply(
-      'Привет! Это Telebotik — только курс Bitcoin к USDT (спот **Binance**).\n\n' +
-        '• Кнопка «' +
-        BTN_PRICE +
-        '» или команда **`/btc`** — цена по запросу.\n' +
-        '• «' +
-        BTN_SUB +
-        '» или **`/subscribe`** — раз в день утром (если включили), одно сообщение подписчикам.\n' +
-        '• «' +
-        BTN_UNS +
-        '» или **`/unsubscribe`** — отключить утреннее письмо.\n' +
-        llmLine +
-        '\n' +
-        `_Сейчас утренняя рассылка:_ ${on ? 'включена ✓' : 'выключена'}.`,
-      { parse_mode: 'Markdown', ...mainKb() },
+      'История диалога очищена. Можете задать новый вопрос про ОЗОН.',
+      mainKb(),
     );
-  });
-
-  bot.help(async (ctx) => {
-    await ctx.reply(
-      'Доступно:\n' +
-        '• `/start` — описание и клавиатура\n' +
-        '• `/btc` или «' +
-        BTN_PRICE +
-        '» — актуальный курс\n' +
-        '• `/subscribe` или «' +
-        BTN_SUB +
-        '» — подписаться на утреннее уведомление\n' +
-        '• `/unsubscribe` или «' +
-        BTN_UNS +
-        '» — отписаться\n' +
-        (gigachat != null
-          ? '• `/ai`, `/gpt` или `/ask` плюс вопрос либо **простой текст без /** — через **GigaChat** при настроенном `GIGACHAT_AUTHORIZATION_KEY`\n'
-          : '• При `GIGACHAT_AUTHORIZATION_KEY` появится GigaChat: `/ai`, `/gpt`, `/ask` или обычный текст.\n') +
-        '\n' +
-        'Точное время «утром» задаёт администратор бота переменными `BTC_DIGEST_CRON` и `BTC_DIGEST_TZ` в файле окружения (по умолчанию 09:00, часовой пояс машины).\n\n' +
-        'Для теста раз в несколько минут можно задать `BTC_DIGEST_TICK_MINUTES` — см. README.',
-      { parse_mode: 'Markdown', ...mainKb() },
-    );
-  });
-
-  bot.command('menu', async (ctx) => {
-    await ctx.reply('Меню:', mainKb());
-  });
-
-  bot.command(['btc', 'bitcoin', 'price'], replySpotBtc);
-  bot.hears([BTN_PRICE, '/btc'], replySpotBtc);
-
-  const replySub = async (ctx, okText) => {
-    await subscribeDaily(pool, ctx.chat.id);
-    await ctx.reply(okText, mainKb());
-  };
-
-  const replyUnsub = async (ctx, okText) => {
-    await unsubscribeDaily(pool, ctx.chat.id);
-    await ctx.reply(okText, mainKb());
-  };
-
-  bot.command(['subscribe', 'daily_on'], async (ctx) => {
-    await replySub(ctx, 'Утренний дайджест включён. Первым придёт сообщение по расписанию.');
-  });
-  bot.hears([BTN_SUB], async (ctx) => {
-    await replySub(ctx, 'Подписка на утренний курс сохранена.');
-  });
-
-  bot.command(['unsubscribe', 'daily_off', 'stop'], async (ctx) => {
-    await replyUnsub(ctx, 'Утренний дайджест выключен.');
-  });
-  bot.hears([BTN_UNS], async (ctx) => {
-    await replyUnsub(ctx, 'Отписались от утренней рассылки.');
-  });
+  }
 
   async function replyViaGigaChat(ctx, payload) {
     if (!gigachat) {
       await ctx.reply(
-        'GigaChat не настроен: задайте GIGACHAT_AUTHORIZATION_KEY в .env.',
+        'GigaChat не настроен: задайте GIGACHAT_AUTHORIZATION_KEY в .env на сервере.',
         mainKb(),
       );
       return;
     }
 
-    const early = preemptiveTelebotikAnswer(payload);
+    const early = preemptiveOzonAnswer(payload);
     if (early !== null) {
       await ctx.reply(early, mainKb());
       return;
     }
 
+    const chatId = ctx.chat.id;
+    const history = getHistory(chatId);
     let stopTyping = /** @type {null | (() => void)} */ (null);
+
     try {
-      stopTyping = createTypingTicker(ctx.telegram, ctx.chat.id);
+      stopTyping = createTypingTicker(ctx.telegram, chatId);
       const reply = clipTelegramMessage(
-        await gigachat.completeUserTurn(payload),
+        await gigachat.completeUserTurn(payload, history),
       );
+      appendTurn(chatId, payload, reply);
       await ctx.reply(reply, mainKb());
     } catch (err) {
       const detail =
         err instanceof Error ? err.stack ?? err.message : String(err);
       console.error('[gigachat] запрос провалился:', detail);
-      await ctx.reply(
-        'Не получилось ответить через GigaChat. Проверьте ключ, сеть или сертификаты (README). Чуть позже можете повторить вопрос.',
-        mainKb(),
-      );
+      await ctx.reply(GIGACHAT_FALLBACK_ERROR, mainKb());
     } finally {
       stopTyping?.();
     }
   }
 
-  /**
-   * @param {string} full вход `/ai текст`, `/gpt текст` или `@username` суффикс бота у команды.
-   */
+  bot.start(async (ctx) => {
+    await ctx.reply(START_MESSAGE, { parse_mode: 'Markdown', ...mainKb() });
+  });
+
+  bot.help(async (ctx) => {
+    await ctx.reply(
+      '**Telebotik** — AI-помощник по ОЗОН (не официальная поддержка).\n\n' +
+        'Команды:\n' +
+        '• `/start` — приветствие и клавиатура\n' +
+        '• `/reset` — очистить историю диалога\n' +
+        '• `/help` — эта подсказка\n' +
+        '• `/ai`, `/gpt`, `/ask` + текст — вопрос нейросети\n\n' +
+        'Или просто **напишите вопрос** без команды.\n\n' +
+        'Кнопки:\n' +
+        `• «${BTN_BUY}», «${BTN_RETURN}», «${BTN_SELL}» — типовые вопросы\n` +
+        `• «${BTN_DOCS}» — ссылки на официальные документы\n` +
+        `• «${BTN_RESET}» — то же, что /reset`,
+      { parse_mode: 'Markdown', ...mainKb() },
+    );
+  });
+
+  bot.command('reset', replyReset);
+  bot.hears([BTN_RESET], replyReset);
+
+  bot.command('menu', async (ctx) => {
+    await ctx.reply('Меню:', mainKb());
+  });
+
+  bot.hears([BTN_DOCS], replyDocs);
+
+  for (const [btn, prompt] of Object.entries(TOPIC_PROMPTS)) {
+    bot.hears([btn], async (ctx) => {
+      await replyViaGigaChat(ctx, prompt);
+    });
+  }
+
+  /** @param {string} full */
   function slashAiGptPayload(full) {
     const m = full.match(/^\/(?:ai|gpt)(?:@\S+)?(.*)$/is);
     return (m?.[1] ?? '').trim();
   }
 
-  /**
-   * @param {string} full вход `/ask вопрос` (поддерживает `/ask@бот`).
-   */
+  /** @param {string} full */
   function slashAskPayload(full) {
     const m = full.match(/^\/ask(?:@\S+)?(.*)$/is);
     return (m?.[1] ?? '').trim();
   }
 
   bot.command(['ai', 'gpt'], async (ctx) => {
-    const full = ctx.message?.text ?? '';
-    const payload = slashAiGptPayload(full);
+    const payload = slashAiGptPayload(ctx.message?.text ?? '');
     if (!payload) {
       await ctx.reply(
-        'Например: `/ai Что такое биткойн простыми словами?`\nили просто отправьте вопрос **обычным сообщением без /command**.',
+        'Например: `/ai Как вернуть товар на ОЗОН?`\nили отправьте вопрос **обычным текстом**.',
         { parse_mode: 'Markdown', ...mainKb() },
       );
       return;
     }
-
     await replyViaGigaChat(ctx, payload);
   });
 
   bot.command('ask', async (ctx) => {
-    const full = ctx.message?.text ?? '';
-    const payload = slashAskPayload(full);
+    const payload = slashAskPayload(ctx.message?.text ?? '');
     if (!payload) {
       await ctx.reply(
-        'Например: `/ask Как читают графики свечей?`',
+        'Например: `/ask Что нужно для старта продаж на ОЗОН?`',
         { parse_mode: 'Markdown', ...mainKb() },
       );
       return;
     }
-
     await replyViaGigaChat(ctx, payload);
   });
 
@@ -225,22 +212,16 @@ export function createBot(token, pool, gigachat = null) {
       return;
     }
 
-    if (gigachat != null && text.trim().length > 0) {
+    if (text.trim().length > 0) {
       await replyViaGigaChat(ctx, text.trim());
-      return;
     }
-
-    await ctx.reply(
-      'Не понял сообщение. Нажмите «' +
-        BTN_PRICE +
-        '» или откройте `/help`.',
-      mainKb(),
-    );
   });
 
   bot.catch((err, ctx) => {
     console.error('[bot]', err);
-    ctx?.reply?.('Временная ошибка. Попробуйте /start').catch(() => {});
+    ctx?.reply?.('Временная ошибка. Попробуйте /start или /reset.').catch(
+      () => {},
+    );
   });
 
   return bot;
