@@ -80,24 +80,25 @@ export function looksLikePromptInjection(text) {
 }
 
 /**
- * Похож ли запрос на тематику ОЗОН / маркетплейса.
+ * Похож ли запрос на тематику ОЗОН / маркетплейса (whitelist перед вызовом API).
  * @param {string} s
  */
-function looksOzonRelated(s) {
+export function looksOzonRelated(s) {
   const patterns = [
     /\bozon\b/iu,
     /озон/iu,
     /маркетплейс/iu,
     /\bfbo\b|\bfbs\b/iu,
-    /продав(?:ец|ать|ца)/iu,
+    /продав(?:ец|ать|ца|аж)/iu,
     /покуп(?:ать|ка|атель)/iu,
-    /возврат/iu,
+    /(?:возврат|вернуть)/iu,
     /заказ/iu,
     /личн(?:ый|ом)\s+кабинет/iu,
-    /кабинет\s+(?:продавца|покупателя)/iu,
+    /кабинет\s+(?:продавца|покупателя|seller)/iu,
     /карточк(?:а|и)\s+товар/iu,
+    /(?:^|\s)товар(?:а|у|ы|ов|ом)?(?:\s|$|[,.!?])/iu,
     /sku\b/iu,
-    /отправк(?:а|и)/iu,
+    /(?:отправк|доставк)/iu,
     /склад/iu,
     /комисси/iu,
     /реквизит/iu,
@@ -109,14 +110,21 @@ function looksOzonRelated(s) {
     /рейтинг\s+продавца/iu,
     /wildberries|вайлдберриз|\bwb\b/iu,
     /перепрод/iu,
-    /маркетплейс(?:е|а|ах)/iu,
+    /(?:^|\s)маркет(?:\s|$|[,.!?])/iu,
+    /пвз|пункт\s+выдачи/iu,
+    /курьер/iu,
+    /упаков/iu,
+    /промокод/iu,
+    /(?:оплат|скидк)/iu,
+    /(?:селлер|seller|merchant)/iu,
+    /штрих(?:[\s-]?код)?/iu,
+    /накладн/iu,
+    /самовывоз/iu,
+    /модераци/iu,
+    /блокировк(?:а|и)\s+(?:кабинет|аккаунт|магазин)/iu,
   ];
   return patterns.some((r) => r.test(s));
 }
-
-/** Явный оффтоп вне ОЗОН — крипто, быт, политика и т.д. */
-const OFF_TOPIC_SNIPPETS =
-  /\b(?:bitcoin|\bbtc\b|битк(?:ой|о)ин\b|крипт(?:овалют|[оа])|блокчейн|blockchain|\bweb3\b|\bnft\b|\bdefi\b)/iu;
 
 const THANKS_ONLY =
   /^\s*(?:спасибо!?|спс\b|мерси|благодар(?:ю|ность)|thank\s*you|thanks|thx)\s*[!.]?\s*$/isu;
@@ -124,13 +132,12 @@ const THANKS_ONLY =
 const GREETING_ONLY =
   /^\s*(?:привет(?:ик)?!?|здравствуй(?:те)?!?|hello|hi(?: there)?!?|hey|(?:доброе|добрый)\s+(?:утро|день|вечер)!?|доброй\s+ночи!?)\s*$/isu;
 
-const GENERAL_OFF_TOPIC =
-  /\b(?:хочу\s+есть|рецепт\b|повар\b|политик|выбор(?:ы|ами)|премьер|президент|расскажи\s+анекдот|\b(?:фильм|сериал)\b|голова\s+болит|медицин|лечени)/isu;
-
 /**
  * Короткий ответ без вызова GigaChat (guardrails / fallback).
+ * Whitelist: в API уходит только явно OZON‑связанный текст; иначе отказ без траты токенов.
+ *
  * @param {string} userMessage
- * @returns {string | null}
+ * @returns {string | null} строка — ответ без API; null — отправить в GigaChat
  */
 export function preemptiveOzonAnswer(userMessage) {
   const t = userMessage.trim();
@@ -138,15 +145,7 @@ export function preemptiveOzonAnswer(userMessage) {
 
   if (looksLikePromptInjection(t)) return PROMPT_INJECTION_REFUSAL;
 
-  if (looksOzonRelated(t)) return null;
-
   const lower = t.toLowerCase();
-  const wordCount = lower
-    .replace(/[^\s\u0400-\u04FFa-z0-9_-]+/giu, ' ')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean).length;
-  const shortTiny = lower.length <= 54 && wordCount <= 10;
 
   if (THANKS_ONLY.test(t)) {
     return 'Пожалуйста! Если будет вопрос по ОЗОН — напишите.';
@@ -158,25 +157,13 @@ export function preemptiveOzonAnswer(userMessage) {
     /^\s*(?:ок|okay|окей|да|нет|ясно|понял(?:а)?|понятно)\s*[!.]?\s*$/isu.test(
       lower,
     );
-  if (shortTiny && tinyAck) {
+  if (tinyAck) {
     return 'Задайте вопрос про маркетплейс ОЗОН — покупку, возврат, продажу или правила. По другим темам не консультирую.';
   }
 
-  if (OFF_TOPIC_SNIPPETS.test(lower) || GENERAL_OFF_TOPIC.test(lower)) {
-    return OFF_TOPIC_REFUSAL;
-  }
+  if (looksOzonRelated(t)) return null;
 
-  const socialChit =
-    /\b(?:рассказывай|расскажи)\b(?![\s\S]*(?:ozon|озон|маркетплейс|возврат|заказ))/isu.test(
-      lower,
-    ) ||
-    /\b(?:как\s+дела\b|советуй\s+|пос(?:ов)?етуй\s+)(?![\s\S]*(?:ozon|озон|маркетплейс))/isu.test(
-      lower,
-    );
-
-  if (shortTiny && socialChit) return OFF_TOPIC_REFUSAL;
-
-  return null;
+  return OFF_TOPIC_REFUSAL;
 }
 
 /** @deprecated используйте preemptiveOzonAnswer */
