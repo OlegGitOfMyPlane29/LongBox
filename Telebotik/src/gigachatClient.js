@@ -175,6 +175,17 @@ export const preemptiveTelebotikAnswer = preemptiveOzonAnswer;
  */
 export const DEFAULT_GIGACHAT_MODEL_FALLBACK = 'GigaChat';
 
+/** Модель embeddings по умолчанию — см. developers.sber.ru/docs/ru/gigachat/guides/embeddings */
+export const DEFAULT_GIGACHAT_EMBEDDINGS_MODEL = 'Embeddings';
+
+export const RAG_ANSWER_RULES = [
+  'Режим ответа по документам (RAG):',
+  '— используй ТОЛЬКО фрагменты из блока «Документы» ниже;',
+  '— не добавляй факты, суммы, сроки и пункты правил, которых нет во фрагментах;',
+  '— если фрагментов недостаточно для уверенного ответа — прямо скажи об этом;',
+  '— напомни, что ты неофициальный помощник, не поддержка ОЗОН.',
+].join('\n');
+
 /** @typedef {import('node:https').RequestOptions} HttpsReqOptions */
 
 /** @typedef {{ role: 'user' | 'assistant', content: string }} ChatMessage */
@@ -245,14 +256,22 @@ function extractAssistantText(obj) {
  * @property {string} [oauthUrl]
  * @property {string} [apiBase]
  * @property {string} [model]
+ * @property {string} [embeddingsModel]
  * @property {boolean} [tlsInsecure]
  */
 
 export class GigachatClient {
   /** @param {GigachatClientOptions} opts */
   constructor(opts) {
-    const { authorizationKey, scope, oauthUrl, apiBase, model, tlsInsecure } =
-      opts;
+    const {
+      authorizationKey,
+      scope,
+      oauthUrl,
+      apiBase,
+      model,
+      embeddingsModel,
+      tlsInsecure,
+    } = opts;
     /** @private */
     this._authorizationKey = authorizationKey;
     /** @private */
@@ -263,6 +282,9 @@ export class GigachatClient {
     this._apiBase = (apiBase ?? DEFAULT_API_BASE).replace(/\/+$/, '');
     /** @private */
     this._model = model ?? DEFAULT_GIGACHAT_MODEL_FALLBACK;
+    /** @private */
+    this._embeddingsModel =
+      embeddingsModel ?? DEFAULT_GIGACHAT_EMBEDDINGS_MODEL;
     /** @private */
     this._tlsInsecure = Boolean(tlsInsecure);
     /** @private @type {{ token: string, expiresAtMs: number } | null} */
@@ -332,10 +354,86 @@ export class GigachatClient {
   }
 
   /**
+   * POST /embeddings — векторное представление текста (тот же OAuth, что и для чата).
+   *
+   * @param {string[]} texts
+   * @returns {Promise<number[][]>}
+   */
+  async embedTexts(texts) {
+    const cleaned = texts.map((t) => t.trim()).filter(Boolean);
+    if (cleaned.length === 0) {
+      throw new Error('[gigachat] embedTexts: пустой input');
+    }
+
+    const token = await this._refreshAccessToken();
+    const url = `${this._apiBase}/embeddings`;
+
+    /** @type {Record<string, unknown>} */
+    const payload = {
+      model: this._embeddingsModel,
+      input: cleaned.length === 1 ? cleaned[0] : cleaned,
+    };
+
+    const body = JSON.stringify(payload);
+
+    const embedOnce = (access) =>
+      httpsJson(
+        'POST',
+        url,
+        {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${access}`,
+          'Content-Length': String(Buffer.byteLength(body)),
+        },
+        body,
+        this._tlsInsecure,
+      );
+
+    let res = await embedOnce(token);
+    if (res.status === 401) {
+      this._tokenCache = null;
+      const refreshed = await this._refreshAccessToken();
+      res = await embedOnce(refreshed);
+    }
+
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(
+        `[gigachat] embeddings ${res.status}: ${res.raw?.slice?.(0, 800) ?? ''}`,
+      );
+    }
+
+    const root = /** @type {Record<string, unknown>} */ (res.json ?? {});
+    const data = root.data;
+    if (!Array.isArray(data) || data.length === 0) {
+      throw new Error('[gigachat] embeddings: пустой data в ответе');
+    }
+
+    /** @type {{ index: number, embedding: number[] }[]} */
+    const items = data
+      .map((item) => {
+        const row = /** @type {Record<string, unknown>} */ (item);
+        const embedding = row.embedding;
+        const index = typeof row.index === 'number' ? row.index : 0;
+        if (!Array.isArray(embedding)) return null;
+        return { index, embedding: embedding.map(Number) };
+      })
+      .filter(Boolean);
+
+    items.sort((a, b) => a.index - b.index);
+    if (items.length !== cleaned.length) {
+      throw new Error('[gigachat] embeddings: не совпало число векторов с input');
+    }
+
+    return items.map((item) => item.embedding);
+  }
+
+  /**
    * @param {string} userMessage
    * @param {ChatMessage[]} [history]
+   * @param {{ ragContext?: string | null }} [opts]
    */
-  async completeUserTurn(userMessage, history = []) {
+  async completeUserTurn(userMessage, history = [], opts = {}) {
     const text = userMessage.trim();
     if (!text) {
       throw new Error('[gigachat] Пустое сообщение');
@@ -344,9 +442,15 @@ export class GigachatClient {
     const token = await this._refreshAccessToken();
     const url = `${this._apiBase}/chat/completions`;
 
+    let systemContent = TELEBOTIK_SYSTEM_PROMPT;
+    const ragContext = opts.ragContext?.trim();
+    if (ragContext) {
+      systemContent = `${TELEBOTIK_SYSTEM_PROMPT}\n\n${RAG_ANSWER_RULES}\n\nДокументы:\n${ragContext}`;
+    }
+
     /** @type {{ role: string, content: string }[]} */
     const messages = [
-      { role: 'system', content: TELEBOTIK_SYSTEM_PROMPT },
+      { role: 'system', content: systemContent },
       ...history.map((m) => ({ role: m.role, content: m.content })),
       { role: 'user', content: text },
     ];
@@ -436,6 +540,11 @@ export function createGigachatFromEnv(env = process.env) {
       env.GIGACHAT_MODEL.trim().length > 0
         ? env.GIGACHAT_MODEL.trim()
         : DEFAULT_GIGACHAT_MODEL_FALLBACK,
+    embeddingsModel:
+      typeof env?.GIGACHAT_EMBEDDINGS_MODEL === 'string' &&
+      env.GIGACHAT_EMBEDDINGS_MODEL.trim().length > 0
+        ? env.GIGACHAT_EMBEDDINGS_MODEL.trim()
+        : DEFAULT_GIGACHAT_EMBEDDINGS_MODEL,
     tlsInsecure,
   });
 }

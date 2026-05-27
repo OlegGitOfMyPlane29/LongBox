@@ -10,9 +10,11 @@ import {
   OZON_DOCS_LINKS,
   preemptiveOzonAnswer,
 } from './gigachatClient.js';
+import { RAG_NO_KNOWLEDGE } from './ragService.js';
 import { telegrafProxyOptionsFromEnv } from './telegramProxyOpts.js';
 
 /** @typedef {import('./gigachatClient.js').GigachatClient} GigachatClient */
+/** @typedef {ReturnType<import('./ragService.js').createRagService>} RagService */
 
 const BTN_BUY = '🛒 Как купить';
 const BTN_RETURN = '↩️ Возврат товара';
@@ -31,15 +33,14 @@ const TOPIC_PROMPTS = {
 
 const START_MESSAGE =
   'Привет! Я **Telebotik** — неофициальный AI-помощник по маркетплейсу **ОЗОН**.\n\n' +
-  '⚠️ Я **не** поддержка компании Ozon и **не** даю юридических или финансовых гарантий. ' +
-  'Для точных формулировок смотрите официальные документы на docs.ozon.ru.\n\n' +
-  'Могу подсказать в общих чертах:\n' +
-  '• покупку на ОЗОН\n' +
+  '⚠️ Я **не** поддержка компании Ozon. Ответы по вопросам ОЗОН опираются на **загруженные документы** (RAG), а не на «догадки» модели.\n\n' +
+  'Могу подсказать по темам:\n' +
+  '• покупка на ОЗОН\n' +
   '• возврат товара\n' +
-  '• начало продажи на маркетплейсе\n' +
-  '• правила и документы площадки\n\n' +
-  '**Напишите вопрос** обычным сообщением или нажмите кнопку ниже.\n' +
-  '• `/reset` — начать диалог заново (очистить историю)\n' +
+  '• продажа на маркетплейсе\n' +
+  '• правила из документов\n\n' +
+  '**Напишите вопрос** или нажмите кнопку ниже.\n' +
+  '• `/reset` — начать диалог заново\n' +
   '• `/help` — список команд';
 
 /** @returns {ReturnType<typeof Markup.keyboard>} */
@@ -71,15 +72,16 @@ function docsReplyText() {
   return (
     'Официальные документы ОЗОН (для точных формулировок):\n\n' +
     OZON_DOCS_LINKS.map((url, i) => `${i + 1}. ${url}`).join('\n') +
-    '\n\nЗадайте конкретный вопрос текстом — постараюсь ответить в общих чертах.'
+    '\n\nЗадайте конкретный вопрос текстом — поищу ответ в загруженной базе документов.'
   );
 }
 
 /**
  * @param {string} token
  * @param {GigachatClient | null} [gigachat]
+ * @param {RagService | null} [rag]
  */
-export function createBot(token, gigachat = null) {
+export function createBot(token, gigachat = null, rag = null) {
   const bot = new Telegraf(token, telegrafProxyOptionsFromEnv());
 
   async function replyDocs(ctx) {
@@ -115,15 +117,28 @@ export function createBot(token, gigachat = null) {
 
     try {
       stopTyping = createTypingTicker(ctx.telegram, chatId);
+
+      /** @type {string | null} */
+      let ragContext = null;
+
+      if (rag) {
+        const { context } = await rag.retrieve(payload);
+        if (!context) {
+          await ctx.reply(RAG_NO_KNOWLEDGE, mainKb());
+          return;
+        }
+        ragContext = context;
+      }
+
       const reply = clipTelegramMessage(
-        await gigachat.completeUserTurn(payload, history),
+        await gigachat.completeUserTurn(payload, history, { ragContext }),
       );
       appendTurn(chatId, payload, reply);
       await ctx.reply(reply, mainKb());
     } catch (err) {
       const detail =
         err instanceof Error ? err.stack ?? err.message : String(err);
-      console.error('[gigachat] запрос провалился:', detail);
+      console.error('[gigachat/rag] запрос провалился:', detail);
       await ctx.reply(GIGACHAT_FALLBACK_ERROR, mainKb());
     } finally {
       stopTyping?.();
@@ -137,16 +152,13 @@ export function createBot(token, gigachat = null) {
   bot.help(async (ctx) => {
     await ctx.reply(
       '**Telebotik** — AI-помощник по ОЗОН (не официальная поддержка).\n\n' +
+        'Ответы по ОЗОН строятся на **RAG**: поиск по документам + GigaChat.\n\n' +
         'Команды:\n' +
-        '• `/start` — приветствие и клавиатура\n' +
-        '• `/reset` — очистить историю диалога\n' +
+        '• `/start` — приветствие\n' +
+        '• `/reset` — очистить историю\n' +
         '• `/help` — эта подсказка\n' +
-        '• `/ai`, `/gpt`, `/ask` + текст — вопрос нейросети\n\n' +
-        'Или просто **напишите вопрос** без команды.\n\n' +
-        'Кнопки:\n' +
-        `• «${BTN_BUY}», «${BTN_RETURN}», «${BTN_SELL}» — типовые вопросы\n` +
-        `• «${BTN_DOCS}» — ссылки на официальные документы\n` +
-        `• «${BTN_RESET}» — то же, что /reset`,
+        '• `/ai`, `/gpt`, `/ask` + текст — вопрос\n\n' +
+        'Или **напишите вопрос** про ОЗОН обычным сообщением.',
       { parse_mode: 'Markdown', ...mainKb() },
     );
   });
@@ -182,7 +194,7 @@ export function createBot(token, gigachat = null) {
     const payload = slashAiGptPayload(ctx.message?.text ?? '');
     if (!payload) {
       await ctx.reply(
-        'Например: `/ai Как вернуть товар на ОЗОН?`\nили отправьте вопрос **обычным текстом**.',
+        'Например: `/ai Как вернуть товар на ОЗОН?`',
         { parse_mode: 'Markdown', ...mainKb() },
       );
       return;

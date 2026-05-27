@@ -1,74 +1,110 @@
 # Telebotik
 
-Telegram-бот **Telebotik** на **Node.js** + **Telegraf**: неофициальный **AI-ассистент по маркетплейсу ОЗОН** на базе **GigaChat** (Сбер).
+Telegram-бот **Telebotik** — неофициальный **AI-ассистент по маркетплейсу ОЗОН** с **RAG** (Retrieval Augmented Generation):
 
-Помогает в общих чертах с покупкой, возвратом, продажей и правилами площадки. **Не является** официальной поддержкой Ozon.
-
-- **Прокси для Telegram** при VPN: `SOCKS_PROXY` / `TELEGRAM_PROXY` — см. **`.env.example`**.
+- документы в `docs/` → индексация → **PostgreSQL + pgvector**;
+- на каждый вопрос — **поиск фрагментов** + ответ **GigaChat** строго по найденному тексту;
+- **fallback**, если в документах нет подходящих фрагментов;
+- **логи** найденных фрагментов в консоль (`[rag] hit …`).
 
 ## Требования
 
 - **Node.js** 18+
-- Токен бота и `GIGACHAT_AUTHORIZATION_KEY` в **`.env`**
+- **PostgreSQL** с расширением **pgvector**
+- `BOT_TOKEN`, `DATABASE_URL`, `GIGACHAT_AUTHORIZATION_KEY` в `.env`
 
-## Запуск локально
+Документы для базы знаний: `docs/BazovayaInfa.docx` (и другие `.docx`/`.txt`/`.md` в `docs/`).
+
+## Локальный запуск
 
 ```powershell
-Copy-Item .env.example .env   # один раз, заполните BOT_TOKEN и GIGACHAT_*
+Copy-Item .env.example .env
 npm install
+npm run db:apply
+npm run rag:index
 npm start
 ```
 
-## Команды в чате
+## RAG: как это устроено
 
-| Команда / кнопка | Действие |
-|------------------|----------|
-| `/start` | Приветствие, дисклеймер и клавиатура |
-| `/reset` или «🔄 Начать заново» | Очистить историю диалога |
-| `/help` | Список команд |
-| `/ai`, `/gpt`, `/ask` + текст или **обычный текст** без `/` | Ответ GigaChat (typing «печатает…») |
-| «🛒 Как купить» / «↩️ Возврат» / «📦 Продажа» | Типовые вопросы |
-| «📋 Документы ОЗОН» | Ссылки на docs.ozon.ru |
+| Шаг | Команда / код |
+|-----|----------------|
+| Схема БД | `npm run db:apply` → `db/schema.sql` |
+| Индексация | `npm run rag:index` → читает `docs/`, embeddings GigaChat, пишет в `rag_chunks` |
+| Ответ бота | `ragService.retrieve()` → GigaChat с контекстом фрагментов |
 
-## Возможности AI
+Embeddings: [документация GigaChat](https://developers.sber.ru/docs/ru/gigachat/guides/embeddings) — тот же `GIGACHAT_AUTHORIZATION_KEY`, endpoint `POST /embeddings`.
 
-- системный промпт с ролью и контекстом ОЗОН;
-- **guardrails** (оффтоп, prompt injection, осторожные формулировки);
-- **fallback** при ошибке API;
-- **история диалога** — последние 10 сообщений в памяти процесса;
-- typing indicator во время генерации.
+## Команды в Telegram
 
-Официальные документы для углублённых вопросов:
+| Команда | Действие |
+|---------|----------|
+| `/start` | Приветствие |
+| `/reset` | Очистить историю диалога |
+| `/help` | Справка |
+| Текст / кнопки ОЗОН | RAG + GigaChat |
 
-- [Правила продажи и реквизиты](https://docs.ozon.ru/common/pravila-prodayoi-i-rekvizity/?country=RU)
-- [Условия Ozon ID](https://docs.ozon.ru/legal/terms-of-use/site/ozon-id-terms/)
-- [Персональные данные](https://docs.ozon.ru/legal/personal-data/)
+## Тестирование
 
-## GigaChat: `.env`
+См. **`tests/rag-test-questions.md`** — таблица из 12 вопросов с ожидаемым поведением.
 
-1. Создайте приложение на [developers.sber.ru](https://developers.sber.ru/) и скопируйте **authorization key**.
-2. Задайте `GIGACHAT_AUTHORIZATION_KEY=...`, при необходимости `GIGACHAT_SCOPE=GIGACHAT_API_PERS`.
-3. На VPS при ошибках сертификата: `GIGACHAT_TLS_INSECURE=1` (см. `.env.example`).
+## pgvector на VPS (Timeweb, Ubuntu)
 
-## Структура
+Один раз в консоли сервера (версия PostgreSQL может отличаться):
 
-```
-src/
-  index.js            — вход
-  bot.js              — диалог, кнопки, /start, /reset
-  chatHistory.js      — история (10 сообщений)
-  gigachatClient.js   — промпт, guardrails, GigaChat API
-  telegramProxyOpts.js
-.env.example
+```bash
+apt update
+apt install -y postgresql-16-pgvector
 ```
 
-## Деплой на VPS (Timeweb)
+В psql под суперпользователем (или через `sudo -u postgres psql`):
+
+```sql
+\c telebotik
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+Затем в папке проекта:
+
+```bash
+npm run db:apply
+npm run rag:index
+systemctl restart telebotik
+```
+
+## Деплой (Timeweb)
 
 ```bash
 cd /opt/LongBox/Telebotik
 git pull
+npm install --omit=dev
+npm run db:apply
+npm run rag:index
 systemctl restart telebotik
-journalctl -u telebotik -n 50 --no-pager
+journalctl -u telebotik -n 80 --no-pager
 ```
 
-`npm install` — только если менялся `package.json`.
+Убедитесь, что в `/opt/LongBox/Telebotik/.env` есть `DATABASE_URL` и `GIGACHAT_AUTHORIZATION_KEY`.
+
+## Структура
+
+```
+docs/
+  BazovayaInfa.docx
+db/
+  schema.sql
+scripts/
+  apply-schema.mjs
+  rag-index.mjs
+src/
+  index.js
+  bot.js
+  gigachatClient.js   — чат + embeddings
+  ragService.js
+  ragStore.js
+  docExtract.js
+  chunkText.js
+  chatHistory.js
+tests/
+  rag-test-questions.md
+```
