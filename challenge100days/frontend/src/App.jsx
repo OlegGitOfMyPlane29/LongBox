@@ -5,7 +5,10 @@ import { useAuth } from './context/AuthContext'
 import AuthPage from './pages/AuthPage'
 import DashboardPage from './pages/DashboardPage'
 import FeedPage from './pages/FeedPage'
+import LandingPage from './pages/LandingPage'
 import ProfilePage from './pages/ProfilePage'
+
+const isLandingMode = import.meta.env.VITE_LANDING_MODE === 'true'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -16,6 +19,14 @@ function ProtectedRoute({ children }) {
 }
 
 export default function App() {
+  if (isLandingMode) {
+    return (
+      <Routes>
+        <Route path="*" element={<LandingPage />} />
+      </Routes>
+    )
+  }
+
   return (
     <Routes>
       <Route path="/auth" element={<AuthPage />} />
