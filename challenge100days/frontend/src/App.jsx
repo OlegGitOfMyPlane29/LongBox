@@ -8,7 +8,7 @@ import FeedPage from './pages/FeedPage'
 import LandingPage from './pages/LandingPage'
 import ProfilePage from './pages/ProfilePage'
 
-const isLandingMode = import.meta.env.VITE_LANDING_MODE === 'true'
+const isLandingMode = import.meta.env.VITE_LANDING_MODE !== 'false'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()

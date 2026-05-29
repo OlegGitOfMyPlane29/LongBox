@@ -44,6 +44,7 @@ services:
       dockerfile: deploy/nginx/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-/api}
+        # Явно true для лендинга; для возврата приложения: VITE_LANDING_MODE=false в .env
         VITE_LANDING_MODE: ${VITE_LANDING_MODE:-true}
         VITE_TELEGRAM_BOT_URL: ${VITE_TELEGRAM_BOT_URL:-https://t.me/telebotik200526_bot}
     depends_on:
